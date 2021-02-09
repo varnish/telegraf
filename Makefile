@@ -2,7 +2,7 @@ next_version :=  $(shell cat build_version.txt)
 tag := $(shell git describe --exact-match --tags 2>git_describe_error.tmp; rm -f git_describe_error.tmp)
 branch := $(shell git rev-parse --abbrev-ref HEAD)
 commit := $(shell git rev-parse --short=8 HEAD)
-glibc_version := 2.17
+glibc_version := 2.32
 
 ifdef NIGHTLY
 	version := $(next_version)
@@ -63,8 +63,12 @@ pkgdir ?= build/dist
 
 .PHONY: all
 all:
+	@$(MAKE) slim
 	@$(MAKE) deps
 	@$(MAKE) telegraf
+
+slim:
+	@./telegraf-slim.sh
 
 .PHONY: help
 help:
@@ -252,7 +256,7 @@ rpm_arch = $(rpm_$(GOARCH)$(GOARM))
 $(rpms):
 	@$(MAKE) install
 	@mkdir -p $(pkgdir)
-	fpm --force \
+	@fpm --force \
 		--log info \
 		--architecture $(rpm_arch) \
 		--input-type dir \
@@ -289,8 +293,8 @@ deb_arch = $(deb_$(GOARCH)$(GOARM))
 
 .PHONY: $(debs)
 $(debs):
-	@$(MAKE) install
-	@mkdir -pv $(pkgdir)
+	$(MAKE) install
+	mkdir -pv $(pkgdir)
 	fpm --force \
 		--log info \
 		--architecture $(deb_arch) \

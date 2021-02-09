@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/filter"
@@ -155,13 +156,65 @@ func (s *Varnish) Gather(acc telegraf.Accumulator) error {
 	}
 
 	for section, fields := range sectionMap {
-		tags := map[string]string{
-			"section": section,
-		}
 		if len(fields) == 0 {
 			continue
 		}
 
+		if section == "VBE" {
+			for k, v := range fields {
+				attr := strings.Split(k, ".")
+				if attr[1] == "goto" {
+					re := "([^.]+)[.]goto[.]([0-9a-f]+)[.][(]([^)]+)[)][.][(]([^)]+)[)][.][(].+[)][.]([^[:space:]]+)"
+					e := regexp.MustCompile(re)
+					matched := e.FindStringSubmatch(k)
+					tags := map[string]string{
+						"section": section,
+						"ip": matched[3],
+						"vcl": matched[1],
+						"url": matched[4],
+					}
+					field := map[string]interface{}{ matched[5]: v }
+					//fmt.Printf("field->[%v]\n", field)
+				    acc.AddFields("varnish_backend", field, tags)
+				} /*else {
+					re := "([^.]+)[.]roxy[.](.+)"
+					e := regexp.MustCompile(re)
+					matched := e.FindStringSubmatch(k)
+					tags := map[string]string{
+						"section": section,
+						"vcl": matched[1],
+						"ip": "unknown",
+						"url": "roxy",
+					}
+					field := map[string]interface{}{ matched[2]: v }
+				    acc.AddFields("varnish_backend", field, tags)
+				}*/
+			}
+			continue
+		} else if section == "ACCG" {
+		    // counter{namespace="$namespace", key="$key", section="ACCG"}
+            // ACCG.$namespace.$key.counter
+			for k, v := range fields {
+				re := "([^.]+)[.]([^.]+)[.]([^.]+)"
+				e := regexp.MustCompile(re)
+				matched := e.FindStringSubmatch(k)
+				tags := map[string]string{
+					"section": section,
+					"namespace": matched[1],
+					"key": matched[2],
+				}
+				field := map[string]interface{}{ matched[3]: v }
+				//fmt.Printf("field->[%v]\n", field)
+				//fmt.Printf("tags->[%v]\n", tags)
+			    acc.AddFields("varnish_accg", field, tags)
+			}
+			continue
+		}
+
+
+		tags := map[string]string{
+			"section": section,
+		}
 		acc.AddFields("varnish", fields, tags)
 	}
 
